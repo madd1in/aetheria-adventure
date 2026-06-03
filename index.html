@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aetheria: Legend of the Void</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="game-container">
+        
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas" width="1024" height="576"></canvas>
+
+        <!-- HUD Overlay -->
+        <div id="hud-overlay">
+            <div class="hud-top">
+                <!-- Health & Mana Bars -->
+                <div class="stat-bars">
+                    <div class="bar-container">
+                        <span class="bar-label">HP</span>
+                        <div class="bar">
+                            <div id="health-bar" class="fill health-fill" style="width: 100%;"></div>
+                        </div>
+                    </div>
+                    <div class="bar-container">
+                        <span class="bar-label">MP</span>
+                        <div class="bar">
+                            <div id="mana-bar" class="fill mana-fill" style="width: 100%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quest Tracker -->
+                <div class="quest-tracker">
+                    <div class="quest-title">Aktuelle Quest</div>
+                    <div id="quest-description" class="quest-desc">Erforsche den Wald und finde den antiken Weisen.</div>
+                </div>
+            </div>
+
+            <!-- Boss Health Bar -->
+            <div id="boss-health-container">
+                <div id="boss-name" class="boss-name">Void Guardian</div>
+                <div class="boss-bar">
+                    <div id="boss-health-bar" class="boss-fill" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <div class="hud-bottom">
+                <!-- Inventory / Keyboard Help -->
+                <div class="inventory-belt">
+                    <div class="item-slot active" id="slot-1">
+                        <span class="item-key-bind">1</span>
+                        <span class="item-icon">⚔️</span>
+                        <span id="weapon-equipped" class="item-count"></span>
+                    </div>
+                    <div class="item-slot" id="slot-2">
+                        <span class="item-key-bind">2</span>
+                        <span class="item-icon">✨</span>
+                        <span id="spell-equipped" class="item-count"></span>
+                    </div>
+                    <div class="item-slot" id="slot-3" onclick="usePotion()">
+                        <span class="item-key-bind">E</span>
+                        <span class="item-icon">🧪</span>
+                        <span id="potion-count" class="item-count">3</span>
+                    </div>
+                    <div class="item-slot" id="slot-key">
+                        <span class="item-key-bind">K</span>
+                        <span class="item-icon">🔑</span>
+                        <span id="key-count" class="item-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dialogue Overlay Container -->
+        <div id="dialogue-overlay" onclick="advanceDialogue()">
+            <div id="dialogue-portrait" class="dialogue-portrait"></div>
+            <div class="dialogue-content">
+                <div id="dialogue-name" class="dialogue-name">???</div>
+                <div id="dialogue-text" class="dialogue-text">...</div>
+                <div class="dialogue-prompt">Klicke zum Fortfahren...</div>
+            </div>
+        </div>
+
+        <!-- Screens -->
+        <!-- Main Menu -->
+        <div id="menu-screen" class="screen active">
+            <div class="title-container">
+                <h1 class="game-title">Aetheria</h1>
+                <div class="subtitle">Legend of the Void</div>
+            </div>
+            <div class="btn-group">
+                <button class="btn" onclick="startGame()">Abenteuer Starten</button>
+                <button class="btn btn-secondary" onclick="showScreen('settings-screen')">Einstellungen</button>
+                <button class="btn btn-secondary" onclick="showScreen('controls-screen')">Steuerung</button>
+            </div>
+        </div>
+
+        <!-- Controls Screen -->
+        <div id="controls-screen" class="screen">
+            <div class="settings-panel">
+                <h2 class="settings-title">Steuerung</h2>
+                <div style="margin-bottom: 20px; line-height: 1.6; font-size: 0.95rem; color: #cbd5e1;">
+                    <p><strong>W, A, S, D / Pfeiltasten:</strong> Bewegen</p>
+                    <p><strong>LEERTASTE:</strong> Dash (Sprinten & Unverwundbarkeit)</p>
+                    <p><strong>Linksklick / J:</strong> Schwertangriff</p>
+                    <p><strong>Rechtsklick / K:</strong> Magisches Projektil (kostet MP)</p>
+                    <p><strong>Taste E / Klick:</strong> Heiltrank trinken</p>
+                    <p><strong>ESC:</strong> Pause / Einstellungen</p>
+                </div>
+                <button class="btn btn-secondary" style="width: 100%;" onclick="showScreen('menu-screen')">Zurück</button>
+            </div>
+        </div>
+
+        <!-- Settings Screen -->
+        <div id="settings-screen" class="screen">
+            <div class="settings-panel">
+                <h2 class="settings-title">Einstellungen</h2>
+                <div class="setting-row">
+                    <label for="music-slider">Musik Lautstärke</label>
+                    <input type="range" id="music-slider" min="0" max="100" value="50" oninput="updateVolume('music', this.value)">
+                </div>
+                <div class="setting-row">
+                    <label for="sfx-slider">SFX Lautstärke</label>
+                    <input type="range" id="sfx-slider" min="0" max="100" value="70" oninput="updateVolume('sfx', this.value)">
+                </div>
+                <button class="btn btn-secondary" style="width: 100%; margin-top: 15px;" onclick="closeSettings()">Schließen</button>
+            </div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="gameover-screen" class="screen">
+            <h2 class="game-over-title">Du bist Gefallen</h2>
+            <p style="margin-bottom: 30px; letter-spacing: 2px; color: #ff85a1;">Deine Seele wurde vom Void absorbiert.</p>
+            <div class="btn-group">
+                <button class="btn" onclick="startGame()">Erneut Versuchen</button>
+                <button class="btn btn-secondary" onclick="showScreen('menu-screen')">Hauptmenü</button>
+            </div>
+        </div>
+
+        <!-- Victory Screen -->
+        <div id="victory-screen" class="screen">
+            <h2 class="victory-title">Void Besiegt!</h2>
+            <p style="margin-bottom: 30px; letter-spacing: 2px; color: #a2d2ff;">Das Licht von Aetheria strahlt wieder.</p>
+            <div class="btn-group">
+                <button class="btn" onclick="showScreen('menu-screen')">Hauptmenü</button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/audio.js"></script>
+    <script src="js/particles.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/enemies.js"></script>
+    <script src="js/game.js"></script>
+</body>
+</html>
