@@ -35,6 +35,113 @@ let gameState = 'menu';
 // Current active level identifier
 let currentLevel = 1;
 
+// Shop overlay open state
+let shopOpen = false;
+
+// Hit freeze frame duration
+let hitFreezeFrames = 0;
+
+// Loot and particle drops list
+window.lootList = [];
+
+class Loot {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 2 + 1;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed - 1; // slight pop upwards
+        this.type = type; // 'coin', 'heart', 'mana'
+        this.radius = 8;
+        this.bounceTimer = 25; // bounce frames
+        this.friction = 0.94;
+    }
+
+    update(player) {
+        if (this.bounceTimer > 0) {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vx *= this.friction;
+            this.vy *= this.friction;
+            this.bounceTimer--;
+        } else {
+            // Magnetic pull
+            const dx = player.x - this.x;
+            const dy = player.y - this.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 150) {
+                const pullSpeed = 5.5 * (1 - dist / 150) + 2.0;
+                this.x += (dx / dist) * pullSpeed;
+                this.y += (dy / dist) * pullSpeed;
+            }
+        }
+    }
+
+    draw(ctx, camera) {
+        const lx = this.x - camera.x;
+        const ly = this.y - camera.y;
+        
+        ctx.save();
+        ctx.shadowBlur = 8;
+        if (this.type === 'coin') {
+            ctx.fillStyle = '#ffb703';
+            ctx.shadowColor = '#ffb703';
+            ctx.beginPath();
+            ctx.arc(lx, ly, 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(lx, ly, 2, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (this.type === 'heart') {
+            ctx.fillStyle = '#ff0054';
+            ctx.shadowColor = '#ff0054';
+            ctx.beginPath();
+            ctx.moveTo(lx, ly + 4);
+            ctx.bezierCurveTo(lx - 5, ly - 2, lx - 5, ly - 7, lx, ly - 4);
+            ctx.bezierCurveTo(lx + 5, ly - 7, lx + 5, ly - 2, lx, ly + 4);
+            ctx.fill();
+        } else if (this.type === 'mana') {
+            ctx.fillStyle = '#00f5d4';
+            ctx.shadowColor = '#00f5d4';
+            ctx.beginPath();
+            ctx.moveTo(lx, ly - 7);
+            ctx.lineTo(lx + 5, ly);
+            ctx.lineTo(lx, ly + 7);
+            ctx.lineTo(lx - 5, ly);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+window.spawnLoot = function(x, y, sourceType) {
+    if (sourceType === 'pot') {
+        const count = Math.random() > 0.5 ? 2 : 1;
+        for (let i = 0; i < count; i++) {
+            window.lootList.push(new Loot(x, y, 'coin'));
+        }
+        if (Math.random() < 0.15) window.lootList.push(new Loot(x, y, 'heart'));
+        if (Math.random() < 0.10) window.lootList.push(new Loot(x, y, 'mana'));
+    } else if (sourceType === 'bush') {
+        if (Math.random() < 0.4) {
+            window.lootList.push(new Loot(x, y, 'coin'));
+        }
+        if (Math.random() < 0.10) window.lootList.push(new Loot(x, y, 'heart'));
+        if (Math.random() < 0.10) window.lootList.push(new Loot(x, y, 'mana'));
+    } else {
+        const count = Math.floor(Math.random() * 3) + 2; // 2-4 coins
+        for (let i = 0; i < count; i++) {
+            window.lootList.push(new Loot(x, y, 'coin'));
+        }
+        if (Math.random() < 0.25) window.lootList.push(new Loot(x, y, 'heart'));
+        if (Math.random() < 0.25) window.lootList.push(new Loot(x, y, 'mana'));
+    }
+};
+
 // Dialogue sequence states
 let dialogueQueue = [];
 let currentDialogueIndex = 0;
@@ -52,12 +159,24 @@ let bossTriggered = false;
 window.addEventListener('keydown', (e) => {
     keys[e.key.toLowerCase()] = true;
     
+    // Shop interaction slot selection bypass
+    if (shopOpen) {
+        if (e.key === '1') { buyShopItem(1); e.preventDefault(); return; }
+        if (e.key === '2') { buyShopItem(2); e.preventDefault(); return; }
+        if (e.key === '3') { buyShopItem(3); e.preventDefault(); return; }
+        if (e.key === '4') { buyShopItem(4); e.preventDefault(); return; }
+        if (e.key === 'Escape') { closeShop(); e.preventDefault(); return; }
+    }
+
     // Quick keys mapping
     if (e.key === ' ' || e.key === 'Spacebar' || e.key.toLowerCase() === 'v') {
         player.dash(keys);
     }
     if (e.key.toLowerCase() === 'e') {
         player.usePotion();
+    }
+    if (e.key.toLowerCase() === 'q') {
+        player.castFlameNova();
     }
     if (e.key.toLowerCase() === 'x') {
         player.attackSword(mousePos, camera, true);
@@ -173,8 +292,13 @@ function startGame() {
     // Spawn level monsters
     window.spawnLevelEnemies(1);
     
-    // Clear particle trails
+    // Clear particle trails and loot lists
     particles.clear();
+    window.lootList = [];
+    
+    // Hide shop overlay
+    document.getElementById('shop-overlay').classList.remove('active');
+    shopOpen = false;
     
     // Close overlays and set game state to start
     document.querySelectorAll('.screen').forEach(scr => scr.classList.remove('active'));
@@ -362,6 +486,11 @@ function triggerBossEntranceDialogue() {
 
 // --- Main Engine Loop ---
 function update() {
+    if (hitFreezeFrames > 0) {
+        hitFreezeFrames--;
+        return;
+    }
+
     if (gameState === 'playing' || gameState === 'dialogue') {
         
         // Update particles always (keeps animations smooth behind dialogue)
@@ -373,16 +502,33 @@ function update() {
             
             // Check interactions with level entities
             // 1. NPC collision check
+            let nearSage = false;
             gameMap.npcs.forEach(npc => {
-                if (npc.id === 'sage' && !sageInteractionDone) {
+                if (npc.id === 'sage') {
                     const dx = player.x - npc.x;
                     const dy = player.y - npc.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 55) {
-                        triggerSageDialogue();
+                    if (dist < 60) {
+                        nearSage = true;
+                        if (!sageInteractionDone) {
+                            triggerSageDialogue();
+                        }
                     }
                 }
             });
+
+            // Toggle shop overlay based on proximity
+            if (nearSage && sageInteractionDone) {
+                if (!shopOpen) {
+                    document.getElementById('shop-overlay').classList.add('active');
+                    shopOpen = true;
+                }
+            } else {
+                if (shopOpen) {
+                    document.getElementById('shop-overlay').classList.remove('active');
+                    shopOpen = false;
+                }
+            }
 
             // 2. Chest collision check
             gameMap.chests.forEach(chest => {
@@ -421,6 +567,7 @@ function update() {
                     
                     window.spawnLevelEnemies(currentLevel);
                     particles.clear();
+                    window.lootList = []; // clear old level drops
                     audio.playDoorOpen();
                     
                     if (currentLevel === 2) {
@@ -428,6 +575,33 @@ function update() {
                     } else if (currentLevel === 3) {
                         triggerBossEntranceDialogue();
                     }
+                }
+            }
+
+            // Update Loot list
+            for (let i = window.lootList.length - 1; i >= 0; i--) {
+                const loot = window.lootList[i];
+                loot.update(player);
+                
+                // Collection check
+                const dx = player.x - loot.x;
+                const dy = player.y - loot.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < player.radius + loot.radius) {
+                    // Collected!
+                    if (loot.type === 'coin') {
+                        player.coins += 1;
+                        audio.playSFX(600, 900, 'sine', 0.08, 0.25);
+                    } else if (loot.type === 'heart') {
+                        player.health = Math.min(player.maxHealth, player.health + 15);
+                        audio.playHeal();
+                    } else if (loot.type === 'mana') {
+                        player.mana = Math.min(player.maxMana, player.mana + 25);
+                        audio.playHeal();
+                    }
+                    particles.spawnCoinSparkles(loot.x, loot.y);
+                    player.updateHUD();
+                    window.lootList.splice(i, 1);
                 }
             }
 
@@ -442,6 +616,11 @@ function update() {
                         audio.playBossDeath();
                         particles.spawnSpellExplosion(enemy.x, enemy.y);
                         
+                        // Spawn boss loot explosion
+                        for (let k = 0; k < 12; k++) {
+                            window.lootList.push(new Loot(enemy.x, enemy.y, 'coin'));
+                        }
+                        
                         // Victory sequence trigger
                         gameState = 'victory';
                         showScreen('victory-screen');
@@ -452,12 +631,8 @@ function update() {
                         audio.playSFX(100, 30, 'triangle', 0.15, 0.4);
                         particles.spawnSpellExplosion(enemy.x, enemy.y);
                         
-                        // Spawning visual potions or healing spark particles randomly
-                        if (Math.random() > 0.6) {
-                            // Give potion directly to player belt
-                            player.potions++;
-                            player.updateHUD();
-                        }
+                        // Spawn loot
+                        window.spawnLoot(enemy.x, enemy.y, enemy.type);
                     }
                     window.enemiesList.splice(i, 1);
                 }
@@ -559,6 +734,9 @@ function draw() {
         ctx.restore();
     });
 
+    // Draw active loot items
+    window.lootList.forEach(l => l.draw(ctx, camera));
+
     // 4. Draw active glowing particles list
     particles.draw(ctx);
 
@@ -569,6 +747,9 @@ function draw() {
     if (gameState === 'playing' || gameState === 'dialogue') {
         gameMap.drawLightingMask(ctx, camera, player);
     }
+
+    // 6. Draw HUD Minimap
+    drawMinimap();
 }
 
 // Main game portal tick loop
@@ -600,4 +781,143 @@ function resizeGame() {
 window.addEventListener('resize', resizeGame);
 window.addEventListener('load', resizeGame);
 setTimeout(resizeGame, 50);
+
+// --- Minimap and Shop Utilities ---
+function drawMinimap() {
+    if (gameState !== 'playing' && gameState !== 'dialogue') return;
+    
+    ctx.save();
+    
+    // Position HUD top-right
+    const mapW = 120;
+    const mapH = 90;
+    const mapX = canvas.width - mapW - 20;
+    const mapY = 80;
+    
+    // Frosted glass background
+    ctx.fillStyle = 'rgba(10, 8, 18, 0.75)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(mapX, mapY, mapW, mapH, 8);
+    ctx.fill();
+    ctx.stroke();
+    
+    // Clip contents
+    ctx.beginPath();
+    ctx.roundRect(mapX, mapY, mapW, mapH, 8);
+    ctx.clip();
+    
+    const scaleX = mapW / gameMap.width;
+    const scaleY = mapH / gameMap.height;
+    
+    // Draw Chests & Keys (Yellow)
+    gameMap.chests.forEach(c => {
+        if (!c.opened) {
+            ctx.fillStyle = '#ffb703';
+            ctx.beginPath();
+            ctx.arc(mapX + c.x * scaleX, mapY + c.y * scaleY, 3.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+    
+    // Draw Portal
+    if (gameMap.portal) {
+        ctx.fillStyle = gameMap.portal.active ? '#00f5d4' : '#6b705c';
+        ctx.fillRect(
+            mapX + gameMap.portal.x * scaleX, 
+            mapY + gameMap.portal.y * scaleY, 
+            gameMap.portal.w * scaleX, 
+            gameMap.portal.h * scaleY
+        );
+    }
+    
+    // Draw NPC Sage (Green)
+    gameMap.npcs.forEach(n => {
+        ctx.fillStyle = '#38b000';
+        ctx.beginPath();
+        ctx.arc(mapX + n.x * scaleX, mapY + n.y * scaleY, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    
+    // Draw Monsters (Red)
+    if (window.enemiesList) {
+        window.enemiesList.forEach(e => {
+            ctx.fillStyle = '#ff0054';
+            ctx.beginPath();
+            ctx.arc(mapX + e.x * scaleX, mapY + e.y * scaleY, 3, 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+    
+    // Draw Player (Blue)
+    ctx.fillStyle = '#00b4d8';
+    ctx.beginPath();
+    ctx.arc(mapX + player.x * scaleX, mapY + player.y * scaleY, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+}
+
+function buyShopItem(index) {
+    if (gameState !== 'playing') return;
+    
+    if (index === 1) {
+        if (player.coins >= 20) {
+            player.coins -= 20;
+            player.potions++;
+            audio.playHeal();
+            particles.spawnCoinSparkles(player.x, player.y);
+            player.updateHUD();
+        } else {
+            audio.playSFX(150, 100, 'sawtooth', 0.15, 0.4); // negative buzzer
+        }
+    } else if (index === 2) {
+        if (player.coins >= 50) {
+            player.coins -= 50;
+            player.swordDamage += 5;
+            audio.playQuest();
+            particles.spawnCoinSparkles(player.x, player.y);
+            player.updateHUD();
+        } else {
+            audio.playSFX(150, 100, 'sawtooth', 0.15, 0.4);
+        }
+    } else if (index === 3) {
+        if (player.coins >= 75) {
+            player.coins -= 75;
+            player.maxHealth += 20;
+            player.health = player.maxHealth;
+            audio.playHeal();
+            particles.spawnCoinSparkles(player.x, player.y);
+            player.updateHUD();
+        } else {
+            audio.playSFX(150, 100, 'sawtooth', 0.15, 0.4);
+        }
+    } else if (index === 4) {
+        if (player.coins >= 75) {
+            player.coins -= 75;
+            player.maxMana += 20;
+            player.mana = player.maxMana;
+            audio.playHeal();
+            particles.spawnCoinSparkles(player.x, player.y);
+            player.updateHUD();
+        } else {
+            audio.playSFX(150, 100, 'sawtooth', 0.15, 0.4);
+        }
+    }
+}
+window.buyShopItem = buyShopItem;
+
+function closeShop() {
+    document.getElementById('shop-overlay').classList.remove('active');
+    shopOpen = false;
+}
+window.closeShop = closeShop;
+
+// Shop backdrop overlay close click listener
+document.getElementById('shop-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'shop-overlay' || e.target.classList.contains('shop-close-prompt')) {
+        closeShop();
+    }
+});
 

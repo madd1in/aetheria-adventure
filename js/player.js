@@ -15,6 +15,8 @@ class Player {
         this.potions = 5;
         this.keys = 0;
         this.hasRuinKey = false;
+        this.coins = 0;
+        this.swordDamage = 25;
         
         // Combat & Dash state
         this.facingAngle = 0;
@@ -30,6 +32,15 @@ class Player {
         this.swordDuration = 12; // frames
         this.swordAngleSweep = 0;
         
+        // 3-hit combo states
+        this.comboIndex = 0;
+        this.comboTimer = 0;
+
+        // Flame Nova spell states
+        this.flameNovaTimer = 0;
+        this.flameNovaRadius = 0;
+        this.flameNovaMaxRadius = 0;
+
         // Projectiles list
         this.projectiles = [];
         this.activeWeapon = 1; // 1 = Sword, 2 = Spell
@@ -48,6 +59,11 @@ class Player {
         this.potions = 5;
         this.keys = 0;
         this.hasRuinKey = false;
+        this.coins = 0;
+        this.swordDamage = 25;
+        this.comboIndex = 0;
+        this.comboTimer = 0;
+        this.flameNovaTimer = 0;
         this.projectiles = [];
         this.isDashing = false;
         this.dashTimer = 0;
@@ -135,11 +151,33 @@ class Player {
             this.facingAngle = Math.atan2(dy, dx);
         }
         
+        // Combo sequence ticking
+        if (this.comboTimer > 0) {
+            this.comboIndex = (this.comboIndex + 1) % 3;
+        } else {
+            this.comboIndex = 0;
+        }
+        this.comboTimer = 45; // 0.75 seconds reset window
+
         this.swordTimer = this.swordDuration;
-        this.swordAngleSweep = -Math.PI / 3.5; // Start angle relative to face
         
-        audio.playSword();
+        let damage = this.swordDamage;
+        let range = 68;
         
+        if (this.comboIndex === 0) {
+            this.swordAngleSweep = -Math.PI / 3.5; // Left-to-right start
+            audio.playSword();
+        } else if (this.comboIndex === 1) {
+            this.swordAngleSweep = Math.PI / 3.5; // Right-to-left start
+            audio.playSword();
+        } else if (this.comboIndex === 2) {
+            this.swordAngleSweep = -Math.PI; // Full 360-degree start
+            damage = Math.floor(this.swordDamage * 1.5);
+            range = 85;
+            // Play heavy slash sound
+            audio.playSFX(250, 80, 'sawtooth', 0.25, 0.5);
+        }
+
         // Check melee hit against active enemies
         if (window.enemiesList) {
             window.enemiesList.forEach(e => {
@@ -147,19 +185,59 @@ class Player {
                 const edy = e.y - this.y;
                 const dist = Math.sqrt(edx * edx + edy * edy);
                 
-                // Within range (65px sword range)
-                if (dist < 68 + e.radius) {
+                // Within range
+                if (dist < range + e.radius) {
                     const angleToEnemy = Math.atan2(edy, edx);
                     
-                    // Check if enemy is in the front slash cone (approx 120 degrees wide)
+                    // Check front cone or full circle for Spin Attack
                     let angleDiff = angleToEnemy - this.facingAngle;
-                    
-                    // Normalize angle difference to -PI to PI
                     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
                     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
                     
-                    if (Math.abs(angleDiff) < Math.PI / 2.5) {
-                        e.takeDamage(25); // Sword damage
+                    if (this.comboIndex === 2 || Math.abs(angleDiff) < Math.PI / 2.5) {
+                        e.takeDamage(damage);
+                        
+                        // Hit freeze trigger on impact
+                        if (window.triggerHitFreeze) {
+                            window.triggerHitFreeze(this.comboIndex === 2 ? 6 : 4);
+                        }
+
+                        // Knockback for heavy Spin Attack (combo index 2)
+                        if (this.comboIndex === 2) {
+                            const kb = 25;
+                            e.x += Math.cos(angleToEnemy) * kb;
+                            e.y += Math.sin(angleToEnemy) * kb;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Check melee hit against destructibles
+        if (gameMap.destructibles) {
+            gameMap.destructibles.forEach(d => {
+                if (d.hp <= 0) return;
+                const ddx = d.x + d.w/2 - this.x;
+                const ddy = d.y + d.h/2 - this.y;
+                const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+                
+                if (dist < range + d.w/2) {
+                    const angleToDest = Math.atan2(ddy, ddx);
+                    let angleDiff = angleToDest - this.facingAngle;
+                    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+                    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+                    
+                    if (this.comboIndex === 2 || Math.abs(angleDiff) < Math.PI / 2.5) {
+                        d.hp--;
+                        if (d.hp <= 0) {
+                            audio.playHit();
+                            if (d.type === 'pot') {
+                                particles.spawnClayShards(d.x + d.w/2, d.y + d.h/2);
+                            } else {
+                                particles.spawnGreenLeaves(d.x + d.w/2, d.y + d.h/2);
+                            }
+                            window.spawnLoot(d.x + d.w/2, d.y + d.h/2, d.type);
+                        }
                     }
                 }
             });
@@ -195,11 +273,81 @@ class Player {
         });
     }
 
+    castFlameNova() {
+        if (this.isDashing || this.mana < 35) return;
+        this.mana -= 35;
+        audio.playSFX(150, 600, 'sawtooth', 0.4, 0.6);
+        this.updateHUD();
+
+        // Reset hit flags on monsters
+        if (window.enemiesList) {
+            window.enemiesList.forEach(e => e.novaHit = false);
+        }
+
+        this.flameNovaTimer = 20; // 20 frames expanding ring
+        this.flameNovaRadius = 10;
+        this.flameNovaMaxRadius = 130;
+        
+        // Spawn sparkles
+        particles.spawnSpellExplosion(this.x, this.y);
+    }
+
     update(keys, mousePos, camera) {
         // Cooldown ticks
         if (this.dashCooldown > 0) this.dashCooldown--;
         if (this.invincibilityFrames > 0) this.invincibilityFrames--;
         
+        if (this.comboTimer > 0) this.comboTimer--;
+        else this.comboIndex = 0;
+
+        if (this.flameNovaTimer > 0) {
+            this.flameNovaTimer--;
+            this.flameNovaRadius += (this.flameNovaMaxRadius - 10) / 20;
+            
+            // Check damage to enemies inside expanding radius
+            if (window.enemiesList) {
+                window.enemiesList.forEach(e => {
+                    const dx = e.x - this.x;
+                    const dy = e.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    // If enemy is hit by the expanding shockwave ring
+                    if (dist > this.flameNovaRadius - 18 && dist < this.flameNovaRadius + 18) {
+                        if (!e.novaHit) {
+                            e.takeDamage(40);
+                            e.novaHit = true;
+                            // Push back
+                            const angle = Math.atan2(dy, dx);
+                            e.x += Math.cos(angle) * 22;
+                            e.y += Math.sin(angle) * 22;
+                            if (window.triggerHitFreeze) window.triggerHitFreeze(4);
+                        }
+                    }
+                });
+            }
+
+            // Damage destructibles too
+            if (gameMap.destructibles) {
+                gameMap.destructibles.forEach(d => {
+                    if (d.hp <= 0) return;
+                    const dx = d.x + d.w/2 - this.x;
+                    const dy = d.y + d.h/2 - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist > this.flameNovaRadius - 18 && dist < this.flameNovaRadius + 18) {
+                        d.hp--;
+                        if (d.hp <= 0) {
+                            audio.playHit();
+                            if (d.type === 'pot') {
+                                particles.spawnClayShards(d.x + d.w/2, d.y + d.h/2);
+                            } else {
+                                particles.spawnGreenLeaves(d.x + d.w/2, d.y + d.h/2);
+                            }
+                            window.spawnLoot(d.x + d.w/2, d.y + d.h/2, d.type);
+                        }
+                    }
+                });
+            }
+        }
+
         // Regen Mana
         if (this.mana < this.maxMana && !this.isDashing) {
             this.mana = Math.min(this.maxMana, this.mana + 0.12);
@@ -317,12 +465,39 @@ class Player {
                     if (dist < p.radius + e.radius) {
                         e.takeDamage(p.damage);
                         hitEnemy = true;
+                        if (window.triggerHitFreeze) window.triggerHitFreeze(4);
                         break;
                     }
                 }
             }
 
-            if (p.life <= 0 || hitWall.collided || hitEnemy) {
+            // Collision check with destructibles
+            let hitDestructible = false;
+            if (gameMap.destructibles) {
+                for (let j = 0; j < gameMap.destructibles.length; j++) {
+                    const d = gameMap.destructibles[j];
+                    if (d.hp <= 0) continue;
+                    const dx = d.x + d.w/2 - p.x;
+                    const dy = d.y + d.h/2 - p.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < p.radius + d.w/2) {
+                        d.hp--;
+                        hitDestructible = true;
+                        if (d.hp <= 0) {
+                            audio.playHit();
+                            if (d.type === 'pot') {
+                                particles.spawnClayShards(d.x + d.w/2, d.y + d.h/2);
+                            } else {
+                                particles.spawnGreenLeaves(d.x + d.w/2, d.y + d.h/2);
+                            }
+                            window.spawnLoot(d.x + d.w/2, d.y + d.h/2, d.type);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if (p.life <= 0 || hitWall.collided || hitEnemy || hitDestructible) {
                 particles.spawnSpellExplosion(p.x, p.y);
                 this.projectiles.splice(i, 1);
             }
@@ -465,18 +640,26 @@ class Player {
         if (this.swordTimer > 0) {
             ctx.save();
             ctx.translate(px, py);
-            ctx.rotate(this.facingAngle + this.swordAngleSweep);
+            
+            let angle = this.facingAngle;
+            if (this.comboIndex === 0) {
+                ctx.rotate(angle + this.swordAngleSweep);
+            } else if (this.comboIndex === 1) {
+                ctx.rotate(angle - this.swordAngleSweep);
+            } else if (this.comboIndex === 2) {
+                ctx.rotate(angle + this.swordAngleSweep * 2.0);
+            }
             
             // Draw sword item
-            ctx.strokeStyle = '#e2def0';
-            ctx.lineWidth = 3;
+            ctx.strokeStyle = this.comboIndex === 2 ? '#ffb703' : '#e2def0';
+            ctx.lineWidth = this.comboIndex === 2 ? 4 : 3;
             ctx.beginPath();
             ctx.moveTo(0, 0);
-            ctx.lineTo(40, -10);
+            ctx.lineTo(this.comboIndex === 2 ? 50 : 40, this.comboIndex === 2 ? 0 : -10);
             ctx.stroke();
 
             // Guard and hilt
-            ctx.strokeStyle = '#ffb703';
+            ctx.strokeStyle = this.comboIndex === 2 ? '#ff0054' : '#ffb703';
             ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.moveTo(8, -14);
@@ -484,16 +667,33 @@ class Player {
             ctx.stroke();
 
             // Slash translucent vapor arc
-            ctx.fillStyle = 'rgba(0, 245, 212, 0.15)';
-            ctx.strokeStyle = 'rgba(0, 245, 212, 0.7)';
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#00f5d4';
-            ctx.lineWidth = 3;
+            ctx.fillStyle = this.comboIndex === 2 ? 'rgba(255, 0, 84, 0.15)' : 'rgba(0, 245, 212, 0.15)';
+            ctx.strokeStyle = this.comboIndex === 2 ? 'rgba(255, 0, 84, 0.7)' : 'rgba(0, 245, 212, 0.7)';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = this.comboIndex === 2 ? '#ff0054' : '#00f5d4';
+            ctx.lineWidth = this.comboIndex === 2 ? 5 : 3;
             
             ctx.beginPath();
-            ctx.arc(0, 0, 48, -Math.PI / 4, Math.PI / 4);
+            if (this.comboIndex === 2) {
+                ctx.arc(0, 0, 60, 0, Math.PI * 2);
+            } else {
+                ctx.arc(0, 0, 48, -Math.PI / 4, Math.PI / 4);
+            }
             ctx.stroke();
             
+            ctx.restore();
+        }
+
+        // Draw Flame Nova expanding ring
+        if (this.flameNovaTimer > 0) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255, 90, 0, ' + (this.flameNovaTimer / 20) + ')';
+            ctx.lineWidth = 6;
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = '#ff5400';
+            ctx.beginPath();
+            ctx.arc(px, py, this.flameNovaRadius, 0, Math.PI * 2);
+            ctx.stroke();
             ctx.restore();
         }
     }
@@ -507,6 +707,7 @@ class Player {
         
         document.getElementById('potion-count').innerText = this.potions;
         document.getElementById('key-count').innerText = this.keys;
+        document.getElementById('coin-count').innerText = this.coins;
     }
 }
 

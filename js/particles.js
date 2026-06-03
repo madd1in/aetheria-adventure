@@ -140,6 +140,51 @@ class ParticleSystem {
         const decay = Math.random() * 0.03 + 0.02;
         this.list.push(new Particle(px, py, vx, vy, 3, '#9d4edd', 0.8, decay, 'ember'));
     }
+
+    spawnClayShards(x, y) {
+        const count = 8;
+        const colors = ['#c37e61', '#8a523a', '#d79a7f', '#5e3829'];
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 2 + 1;
+            const vx = Math.cos(angle) * speed;
+            const vy = Math.sin(angle) * speed - 0.5;
+            const size = Math.random() * 4 + 2;
+            const decay = Math.random() * 0.03 + 0.02;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            this.list.push(new Particle(x, y, vx, vy, size, color, 1.0, decay, 'physics'));
+        }
+    }
+
+    spawnGreenLeaves(x, y) {
+        const count = 10;
+        const colors = ['#2d6a4f', '#40916c', '#52b788', '#1b4332'];
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 1.5 + 0.5;
+            const vx = Math.cos(angle) * speed;
+            const vy = Math.sin(angle) * speed - 0.5;
+            const size = Math.random() * 5 + 2;
+            const decay = Math.random() * 0.025 + 0.015;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            this.list.push(new Particle(x, y, vx, vy, size, color, 1.0, decay, 'physics'));
+        }
+    }
+
+    spawnCoinSparkles(x, y) {
+        const count = 6;
+        const colors = ['#ffb703', '#ffdd00', '#ffffff'];
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 1.2 + 0.4;
+            const vx = Math.cos(angle) * speed;
+            const vy = Math.sin(angle) * speed - 0.5;
+            const size = Math.random() * 3 + 1.5;
+            const decay = Math.random() * 0.04 + 0.03;
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            this.list.push(new Particle(x, y, vx, vy, size, color, 1.0, decay, 'ember'));
+        }
+    }
 }
 
 // Global Particle Engine Instance

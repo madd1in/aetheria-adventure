@@ -64,7 +64,15 @@ class GameMap {
                     { x: 900, y: 200, type: 'crawler' },
                     { x: 850, y: 780, type: 'crawler' }
                 ],
-                portal: { x: 1500, y: 500, w: 50, h: 80, active: false, destLevel: 2 }
+                portal: { x: 1500, y: 500, w: 50, h: 80, active: false, destLevel: 2 },
+                destructibles: [
+                    { type: 'pot', x: 300, y: 450, w: 32, h: 32, hp: 1 },
+                    { type: 'pot', x: 340, y: 450, w: 32, h: 32, hp: 1 },
+                    { type: 'bush', x: 750, y: 250, w: 36, h: 36, hp: 1 },
+                    { type: 'bush', x: 790, y: 270, w: 36, h: 36, hp: 1 },
+                    { type: 'pot', x: 1300, y: 250, w: 32, h: 32, hp: 1 },
+                    { type: 'bush', x: 1350, y: 220, w: 36, h: 36, hp: 1 }
+                ]
             },
             2: {
                 name: "Die Ruinen von Aetheria",
@@ -124,7 +132,15 @@ class GameMap {
                     { x: 950, y: 800, type: 'sentry' },
                     { x: 1300, y: 500, type: 'crawler' }
                 ],
-                portal: { x: 1500, y: 500, w: 50, h: 80, active: true, destLevel: 3 }
+                portal: { x: 1500, y: 500, w: 50, h: 80, active: true, destLevel: 3 },
+                destructibles: [
+                    { type: 'pot', x: 250, y: 250, w: 32, h: 32, hp: 1 },
+                    { type: 'pot', x: 250, y: 750, w: 32, h: 32, hp: 1 },
+                    { type: 'pot', x: 700, y: 180, w: 32, h: 32, hp: 1 },
+                    { type: 'pot', x: 800, y: 180, w: 32, h: 32, hp: 1 },
+                    { type: 'pot', x: 700, y: 820, w: 32, h: 32, hp: 1 },
+                    { type: 'pot', x: 800, y: 820, w: 32, h: 32, hp: 1 }
+                ]
             },
             3: {
                 name: "Der Void Rift (Boss-Arena)",
@@ -173,6 +189,7 @@ class GameMap {
         this.lights = JSON.parse(JSON.stringify(lvl.lights));
         this.portal = lvl.portal ? JSON.parse(JSON.stringify(lvl.portal)) : null;
         this.enemies = JSON.parse(JSON.stringify(lvl.enemies));
+        this.destructibles = lvl.destructibles ? JSON.parse(JSON.stringify(lvl.destructibles)) : [];
     }
 
     draw(ctx, camera) {
@@ -420,6 +437,32 @@ class GameMap {
             }
         });
 
+        // Draw destructibles
+        this.destructibles.forEach(d => {
+            if (d.hp <= 0) return;
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.fillRect(d.x - 2, d.y + d.h - 6, d.w + 4, 6); // shadow
+
+            if (useTileset) {
+                const sw = window.tilesetImg.width / 4;
+                const sh = window.tilesetImg.height / 4;
+                const col = d.type === 'pot' ? 2 : 3; // Row 2, Col 2: Pot, Col 3: Bush
+                ctx.drawImage(window.tilesetImg, col * sw, 2 * sh, sw, sh, d.x, d.y, d.w, d.h);
+            } else {
+                if (d.type === 'pot') {
+                    ctx.fillStyle = '#b75d32';
+                    ctx.fillRect(d.x, d.y, d.w, d.h);
+                    ctx.fillStyle = '#9b4f28';
+                    ctx.fillRect(d.x + 4, d.y + 4, d.w - 8, d.h - 8);
+                } else {
+                    ctx.fillStyle = '#2d6a4f';
+                    ctx.beginPath();
+                    ctx.arc(d.x + d.w/2, d.y + d.h/2, d.w/2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        });
+
         // Draw portals
         if (this.portal) {
             const p = this.portal;
@@ -532,13 +575,19 @@ class GameMap {
             const lx = l.x - camera.x;
             const ly = l.y - camera.y;
             
-            grad = ctx.createRadialGradient(lx, ly, 5, lx, ly, l.radius);
+            // Add a dynamic flicker effect to torch lights
+            let radius = l.radius;
+            if (l.color.includes('255, 107, 53')) { // Torches
+                radius += Math.sin(Date.now() * 0.01 + l.x) * 6 + (Math.random() - 0.5) * 2;
+            }
+            
+            grad = ctx.createRadialGradient(lx, ly, 5, lx, ly, radius);
             grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
             grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.5)');
             grad.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
-            ctx.arc(lx, ly, l.radius, 0, Math.PI * 2);
+            ctx.arc(lx, ly, radius, 0, Math.PI * 2);
             ctx.fill();
         });
 

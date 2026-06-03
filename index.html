@@ -32,10 +32,16 @@
                     </div>
                 </div>
 
-                <!-- Quest Tracker -->
-                <div class="quest-tracker">
-                    <div class="quest-title">Aktuelle Quest</div>
-                    <div id="quest-description" class="quest-desc">Erforsche den Wald und finde den antiken Weisen.</div>
+                <!-- Quest & Coin Tracker -->
+                <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-end;">
+                    <div class="coin-counter">
+                        <span class="coin-icon">🪙</span>
+                        <span id="coin-count">0</span>
+                    </div>
+                    <div class="quest-tracker">
+                        <div class="quest-title">Aktuelle Quest</div>
+                        <div id="quest-description" class="quest-desc">Erforsche den Wald und finde den antiken Weisen.</div>
+                    </div>
                 </div>
             </div>
 
@@ -98,6 +104,47 @@
                 <div class="dialogue-prompt">Klicke zum Fortfahren...</div>
             </div>
         </div>
+
+        <!-- Vendor Shop Overlay Panel -->
+        <div id="shop-overlay">
+            <h2 class="settings-title" style="margin-bottom:15px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:10px;">Weisen-Laden</h2>
+            <div style="font-size:0.8rem; color:#a49fb6; margin-bottom:15px; text-align:center;">Drücke die Zifferntasten [1, 2, 3, 4] zum Kaufen.</div>
+            
+            <div class="shop-item" onclick="buyShopItem(1)">
+                <div class="shop-item-desc">
+                    <span class="shop-item-title">[1] Heiltrank</span>
+                    <span class="shop-item-sub">Stellt 65 HP wieder her.</span>
+                </div>
+                <span class="shop-item-price">🪙 20</span>
+            </div>
+
+            <div class="shop-item" onclick="buyShopItem(2)">
+                <div class="shop-item-desc">
+                    <span class="shop-item-title">[2] Schwertschärfe</span>
+                    <span class="shop-item-sub">Erhöht Schwertschaden (+5 Schaden)</span>
+                </div>
+                <span class="shop-item-price">🪙 50</span>
+            </div>
+
+            <div class="shop-item" onclick="buyShopItem(3)">
+                <div class="shop-item-desc">
+                    <span class="shop-item-title">[3] Aether-Herz</span>
+                    <span class="shop-item-sub">Max. HP +20 (heilt komplett)</span>
+                </div>
+                <span class="shop-item-price">🪙 75</span>
+            </div>
+
+            <div class="shop-item" onclick="buyShopItem(4)">
+                <div class="shop-item-desc">
+                    <span class="shop-item-title">[4] Astral-Kristall</span>
+                    <span class="shop-item-sub">Max. Mana +20</span>
+                </div>
+                <span class="shop-item-price">🪙 75</span>
+            </div>
+
+            <div class="shop-close-prompt">Drücke [ESC] oder klicke zum Verlassen</div>
+        </div>
+
 
         <!-- Screens -->
         <!-- Main Menu -->
