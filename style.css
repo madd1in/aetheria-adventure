@@ -40,6 +40,7 @@ body {
     border-radius: 12px;
     border: 1px solid var(--glass-border);
     overflow: hidden;
+    transform-origin: center center;
 }
 
 canvas {
@@ -546,3 +547,39 @@ input[type="range"]::-webkit-slider-thumb:hover {
     margin-bottom: 10px;
     letter-spacing: 3px;
 }
+
+/* Keyboard keycap help prompts */
+.hud-controls-helper {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(10, 8, 18, 0.65);
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(5px);
+    display: flex;
+    gap: 15px;
+    pointer-events: auto;
+    font-size: 0.8rem;
+    color: #cbd5e1;
+}
+
+.helper-action {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.keycap {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-bottom: 2px solid rgba(255, 255, 255, 0.4);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: #fff;
+    font-family: monospace;
+}
+

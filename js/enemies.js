@@ -47,6 +47,10 @@ class Enemy {
         
         this.facingAngle = 0;
         this.flashTicks = 0; // Flash white on damage
+
+        // Spritesheet animation
+        this.animFrame = 0;
+        this.animTimer = 0;
     }
 
     takeDamage(amount) {
@@ -76,6 +80,13 @@ class Enemy {
 
     update(player) {
         if (this.flashTicks > 0) this.flashTicks--;
+
+        // Tick animation frame
+        this.animTimer++;
+        if (this.animTimer >= 8) {
+            this.animFrame = (this.animFrame + 1) % 4;
+            this.animTimer = 0;
+        }
 
         const dx = player.x - this.x;
         const dy = player.y - this.y;
@@ -364,7 +375,6 @@ class Enemy {
         // 1. Draw warning indicators / active laser beams for Boss
         if (this.type === 'boss') {
             if (this.laserIndicatorActive) {
-                // Red warning beam line indicator
                 ctx.save();
                 ctx.strokeStyle = 'rgba(255, 0, 84, 0.4)';
                 ctx.lineWidth = 1.5;
@@ -377,13 +387,11 @@ class Enemy {
             }
 
             if (this.state === 'laser_sweep') {
-                // Giant void beam sweep drawing
                 ctx.save();
                 ctx.strokeStyle = '#fff';
                 ctx.lineWidth = 14;
                 ctx.shadowBlur = 20;
                 ctx.shadowColor = '#ff0054';
-                
                 ctx.beginPath();
                 ctx.moveTo(ex, ey);
                 ctx.lineTo(ex + Math.cos(this.laserAngle) * 800, ey + Math.sin(this.laserAngle) * 800);
@@ -395,105 +403,125 @@ class Enemy {
                 ctx.moveTo(ex, ey);
                 ctx.lineTo(ex + Math.cos(this.laserAngle) * 800, ey + Math.sin(this.laserAngle) * 800);
                 ctx.stroke();
-                
                 ctx.restore();
             }
         }
 
-        // 2. Draw Enemy Body
-        ctx.save();
-        ctx.translate(ex, ey);
-        ctx.rotate(this.facingAngle);
+        // 2. Draw Enemy sprites or vector fallback
+        const useSheet = window.enemiesSheetImg && window.enemiesSheetImg.complete && window.enemiesSheetImg.width > 0;
+        
+        if (useSheet) {
+            ctx.save();
+            ctx.translate(ex, ey);
+            ctx.rotate(this.facingAngle);
 
-        if (this.flashTicks > 0) {
-            ctx.fillStyle = '#ffffff';
+            if (this.flashTicks > 0) {
+                ctx.globalAlpha = 0.4;
+            }
+
+            const fw = window.enemiesSheetImg.width / 4;
+            const fh = window.enemiesSheetImg.height / 4;
+            
+            // Map types to rows (Crawler: 0, Sentry: 1, Boss: 2)
+            let row = 0;
+            let size = this.radius * 2.5;
+            if (this.type === 'sentry') {
+                row = 1;
+            } else if (this.type === 'boss') {
+                row = 2;
+                size = this.radius * 2.8; // make boss giant
+            }
+
+            ctx.drawImage(
+                window.enemiesSheetImg,
+                this.animFrame * fw,
+                row * fh,
+                fw,
+                fh,
+                -size / 2,
+                -size / 2,
+                size,
+                size
+            );
+
+            ctx.restore();
         } else {
-            ctx.fillStyle = this.color;
+            // Draw Fallback vector body shapes
+            ctx.save();
+            ctx.translate(ex, ey);
+            ctx.rotate(this.facingAngle);
+
+            if (this.flashTicks > 0) {
+                ctx.fillStyle = '#ffffff';
+            } else {
+                ctx.fillStyle = this.color;
+            }
+
+            if (this.type === 'crawler') {
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ff0054';
+                ctx.fillRect(-this.radius - 2, -4, 4, 8);
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(this.radius - 2, -6);
+                ctx.lineTo(this.radius + 6, -3);
+                ctx.moveTo(this.radius - 2, 6);
+                ctx.lineTo(this.radius + 6, 3);
+                ctx.stroke();
+            } 
+            else if (this.type === 'sentry') {
+                ctx.beginPath();
+                ctx.moveTo(-this.radius, 0);
+                ctx.quadraticCurveTo(0, -this.radius - 3, this.radius, 0);
+                ctx.quadraticCurveTo(0, this.radius + 3, -this.radius, 0);
+                ctx.fill();
+                ctx.strokeStyle = '#3c096c';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius + 2, 0, Math.PI*2);
+                ctx.stroke();
+                ctx.fillStyle = '#00f5d4';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = '#00f5d4';
+                ctx.beginPath();
+                ctx.arc(4, 0, 6, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            } 
+            else if (this.type === 'boss') {
+                ctx.beginPath();
+                ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#220044';
+                ctx.strokeStyle = '#9d4edd';
+                ctx.lineWidth = 3;
+                ctx.fillRect(-this.radius + 5, -this.radius - 8, 20, 20);
+                ctx.strokeRect(-this.radius + 5, -this.radius - 8, 20, 20);
+                ctx.fillRect(-this.radius + 5, this.radius - 12, 20, 20);
+                ctx.strokeRect(-this.radius + 5, this.radius - 12, 20, 20);
+                ctx.fillStyle = '#ff0054';
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#ff0054';
+                ctx.beginPath();
+                ctx.arc(0, 0, 12, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#10002b';
+                ctx.beginPath();
+                ctx.moveTo(this.radius - 5, -12);
+                ctx.lineTo(this.radius + 15, -20);
+                ctx.lineTo(this.radius + 5, 0);
+                ctx.lineTo(this.radius + 15, 20);
+                ctx.lineTo(this.radius - 5, 12);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.restore();
         }
-
-        if (this.type === 'crawler') {
-            // Bug/crawler shape
-            ctx.beginPath();
-            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-            ctx.fill();
-            
-            // Glowing spikes
-            ctx.fillStyle = '#ff0054';
-            ctx.fillRect(-this.radius - 2, -4, 4, 8);
-            
-            // Fangs
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(this.radius - 2, -6);
-            ctx.lineTo(this.radius + 6, -3);
-            ctx.moveTo(this.radius - 2, 6);
-            ctx.lineTo(this.radius + 6, 3);
-            ctx.stroke();
-        } 
-        
-        else if (this.type === 'sentry') {
-            // Hovering eye construct
-            ctx.beginPath();
-            ctx.moveTo(-this.radius, 0);
-            ctx.quadraticCurveTo(0, -this.radius - 3, this.radius, 0);
-            ctx.quadraticCurveTo(0, this.radius + 3, -this.radius, 0);
-            ctx.fill();
-            
-            // Outer armor ring
-            ctx.strokeStyle = '#3c096c';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(0, 0, this.radius + 2, 0, Math.PI*2);
-            ctx.stroke();
-
-            // Inner glowing iris eye center
-            ctx.fillStyle = '#00f5d4';
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#00f5d4';
-            ctx.beginPath();
-            ctx.arc(4, 0, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-        } 
-        
-        else if (this.type === 'boss') {
-            // Massive Void guardian golem construct
-            ctx.beginPath();
-            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Golem shoulder pauldrons
-            ctx.fillStyle = '#220044';
-            ctx.strokeStyle = '#9d4edd';
-            ctx.lineWidth = 3;
-            ctx.fillRect(-this.radius + 5, -this.radius - 8, 20, 20);
-            ctx.strokeRect(-this.radius + 5, -this.radius - 8, 20, 20);
-            ctx.fillRect(-this.radius + 5, this.radius - 12, 20, 20);
-            ctx.strokeRect(-this.radius + 5, this.radius - 12, 20, 20);
-
-            // Glowing void core heart
-            ctx.fillStyle = '#ff0054';
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#ff0054';
-            ctx.beginPath();
-            ctx.arc(0, 0, 12, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.shadowBlur = 0;
-
-            // Stone head horn crowns
-            ctx.fillStyle = '#10002b';
-            ctx.beginPath();
-            ctx.moveTo(this.radius - 5, -12);
-            ctx.lineTo(this.radius + 15, -20);
-            ctx.lineTo(this.radius + 5, 0);
-            ctx.lineTo(this.radius + 15, 20);
-            ctx.lineTo(this.radius - 5, 12);
-            ctx.closePath();
-            ctx.fill();
-        }
-
-        ctx.restore();
     }
 }
 

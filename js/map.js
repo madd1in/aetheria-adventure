@@ -177,35 +177,68 @@ class GameMap {
 
     draw(ctx, camera) {
         const lvl = this.levels[this.currentLevel];
+        const useTileset = window.tilesetImg && window.tilesetImg.complete && window.tilesetImg.width > 0;
         
-        // Draw floor texture pattern
-        ctx.fillStyle = lvl.groundColor;
-        ctx.fillRect(0, 0, this.width, this.height);
-        
-        // Draw grid lines to suggest detailed paving tiles
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
-        ctx.lineWidth = 1;
-        const gridSize = 48;
-        for (let x = 0; x < this.width; x += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(x, 0);
-            ctx.lineTo(x, this.height);
-            ctx.stroke();
-        }
-        for (let y = 0; y < this.height; y += gridSize) {
-            ctx.beginPath();
-            ctx.moveTo(0, y);
-            ctx.lineTo(this.width, y);
-            ctx.stroke();
+        if (useTileset) {
+            const sw = window.tilesetImg.width / 4;
+            const sh = window.tilesetImg.height / 4;
+            // Floor tile coordinate matching: Grass (0,0) for Level 1, Stone (1,0) for Level 2 & 3
+            const floorX = this.currentLevel === 1 ? 0 : 1;
+            const floorY = 0;
+            
+            // Loop tiles within viewport camera boundaries (grid size 48)
+            const startX = Math.floor(camera.x / 48) * 48;
+            const startY = Math.floor(camera.y / 48) * 48;
+            const endX = Math.min(this.width, camera.x + camera.w + 48);
+            const endY = Math.min(this.height, camera.y + camera.h + 48);
+            
+            for (let x = startX; x < endX; x += 48) {
+                for (let y = startY; y < endY; y += 48) {
+                    ctx.drawImage(
+                        window.tilesetImg,
+                        floorX * sw,
+                        floorY * sh,
+                        sw,
+                        sh,
+                        x,
+                        y,
+                        48,
+                        48
+                    );
+                }
+            }
+        } else {
+            // Draw fallback floor texture pattern
+            ctx.fillStyle = lvl.groundColor;
+            ctx.fillRect(0, 0, this.width, this.height);
+            
+            // Draw grid lines to suggest detailed paving tiles
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
+            ctx.lineWidth = 1;
+            const gridSize = 48;
+            for (let x = 0; x < this.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, this.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < this.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(this.width, y);
+                ctx.stroke();
+            }
         }
 
         // Draw level portals, decorations, obstacles
         if (this.currentLevel === 1) {
             // Level 1: Woods details
             // Mossy patterns
-            ctx.fillStyle = '#172b20';
-            ctx.fillRect(300, 400, 200, 150);
-            ctx.fillRect(1000, 100, 300, 200);
+            if (!useTileset) {
+                ctx.fillStyle = '#172b20';
+                ctx.fillRect(300, 400, 200, 150);
+                ctx.fillRect(1000, 100, 300, 200);
+            }
 
             // Obstacles
             this.colliders.forEach(c => {
@@ -216,22 +249,43 @@ class GameMap {
                     ctx.ellipse(c.x + 30, c.y + 45, 25, 12, 0, 0, Math.PI * 2);
                     ctx.fill();
                     
-                    // Trunk
-                    ctx.fillStyle = '#4c2f13';
-                    ctx.fillRect(c.x + 20, c.y + 20, 20, 25);
-                    
-                    // Foliage
-                    ctx.fillStyle = '#2d5a27';
-                    ctx.beginPath();
-                    ctx.arc(c.x + 30, c.y + 10, 40, 0, Math.PI * 2);
-                    ctx.fill();
+                    if (useTileset) {
+                        const sw = window.tilesetImg.width / 4;
+                        const sh = window.tilesetImg.height / 4;
+                        // Slice tree from Row 0, Col 3
+                        ctx.drawImage(window.tilesetImg, 3 * sw, 0 * sh, sw, sh, c.x, c.y - 12, 60, 72);
+                    } else {
+                        // Trunk
+                        ctx.fillStyle = '#4c2f13';
+                        ctx.fillRect(c.x + 20, c.y + 20, 20, 25);
+                        
+                        // Foliage
+                        ctx.fillStyle = '#2d5a27';
+                        ctx.beginPath();
+                        ctx.arc(c.x + 30, c.y + 10, 40, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
                 } else if (c.y !== 0 && c.x !== 0 && c.w !== 1600 && c.h !== 1000) {
-                    // Stone bricks barriers
-                    ctx.fillStyle = '#3a3a4c';
-                    ctx.strokeStyle = '#4e4e66';
-                    ctx.lineWidth = 2;
-                    ctx.fillRect(c.x, c.y, c.w, c.h);
-                    ctx.strokeRect(c.x, c.y, c.w, c.h);
+                    // Walls / barriers
+                    if (useTileset) {
+                        const sw = window.tilesetImg.width / 4;
+                        const sh = window.tilesetImg.height / 4;
+                        // Tiled wall brick slices (Row 1, Col 0)
+                        for (let wx = c.x; wx < c.x + c.w; wx += 48) {
+                            for (let wy = c.y; wy < c.y + c.h; wy += 48) {
+                                const dw = Math.min(48, c.x + c.w - wx);
+                                const dh = Math.min(48, c.y + c.h - wy);
+                                ctx.drawImage(window.tilesetImg, 0 * sw, 1 * sh, (dw/48)*sw, (dh/48)*sh, wx, wy, dw, dh);
+                            }
+                        }
+                    } else {
+                        // Stone bricks barriers fallback
+                        ctx.fillStyle = '#3a3a4c';
+                        ctx.strokeStyle = '#4e4e66';
+                        ctx.lineWidth = 2;
+                        ctx.fillRect(c.x, c.y, c.w, c.h);
+                        ctx.strokeRect(c.x, c.y, c.w, c.h);
+                    }
                 }
             });
 
@@ -247,15 +301,28 @@ class GameMap {
             // Void pool danger zones
             lvl.decorations.forEach(d => {
                 if (d.type === 'void_pool') {
-                    ctx.fillStyle = 'rgba(123, 44, 191, 0.4)';
-                    ctx.shadowBlur = 20;
-                    ctx.shadowColor = '#9d4edd';
-                    ctx.fillRect(d.x, d.y, d.w, d.h);
-                    ctx.shadowBlur = 0;
-                    
-                    ctx.strokeStyle = '#9d4edd';
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(d.x, d.y, d.w, d.h);
+                    if (useTileset) {
+                        const sw = window.tilesetImg.width / 4;
+                        const sh = window.tilesetImg.height / 4;
+                        // Void pool tiles tiled across width/height (Row 1, Col 2)
+                        for (let px = d.x; px < d.x + d.w; px += 48) {
+                            for (let py = d.y; py < d.y + d.h; py += 48) {
+                                const dw = Math.min(48, d.x + d.w - px);
+                                const dh = Math.min(48, d.y + d.h - py);
+                                ctx.drawImage(window.tilesetImg, 2 * sw, 1 * sh, (dw/48)*sw, (dh/48)*sh, px, py, dw, dh);
+                            }
+                        }
+                    } else {
+                        ctx.fillStyle = 'rgba(123, 44, 191, 0.4)';
+                        ctx.shadowBlur = 20;
+                        ctx.shadowColor = '#9d4edd';
+                        ctx.fillRect(d.x, d.y, d.w, d.h);
+                        ctx.shadowBlur = 0;
+                        
+                        ctx.strokeStyle = '#9d4edd';
+                        ctx.lineWidth = 3;
+                        ctx.strokeRect(d.x, d.y, d.w, d.h);
+                    }
 
                     // Glowing floating particles over the pool
                     particles.spawnPortalVortex(d.x + d.w/2, d.y + d.h/2, 100);
@@ -265,15 +332,28 @@ class GameMap {
             // Pillars and barriers
             this.colliders.forEach(c => {
                 if (c.y !== 0 && c.x !== 0 && c.w !== 1600 && c.h !== 1000) {
-                    ctx.fillStyle = '#221930';
-                    ctx.strokeStyle = '#4c2e6b';
-                    ctx.lineWidth = 2;
-                    ctx.fillRect(c.x, c.y, c.w, c.h);
-                    ctx.strokeRect(c.x, c.y, c.w, c.h);
-                    
-                    // Details
-                    ctx.fillStyle = '#4c2e6b';
-                    ctx.fillRect(c.x + 5, c.y + 5, c.w - 10, 10);
+                    if (useTileset) {
+                        const sw = window.tilesetImg.width / 4;
+                        const sh = window.tilesetImg.height / 4;
+                        // Brick wall tiles repeated (Row 1, Col 0)
+                        for (let wx = c.x; wx < c.x + c.w; wx += 48) {
+                            for (let wy = c.y; wy < c.y + c.h; wy += 48) {
+                                const dw = Math.min(48, c.x + c.w - wx);
+                                const dh = Math.min(48, c.y + c.h - wy);
+                                ctx.drawImage(window.tilesetImg, 0 * sw, 1 * sh, (dw/48)*sw, (dh/48)*sh, wx, wy, dw, dh);
+                            }
+                        }
+                    } else {
+                        ctx.fillStyle = '#221930';
+                        ctx.strokeStyle = '#4c2e6b';
+                        ctx.lineWidth = 2;
+                        ctx.fillRect(c.x, c.y, c.w, c.h);
+                        ctx.strokeRect(c.x, c.y, c.w, c.h);
+                        
+                        // Details
+                        ctx.fillStyle = '#4c2e6b';
+                        ctx.fillRect(c.x + 5, c.y + 5, c.w - 10, 10);
+                    }
                 }
             });
         } 
@@ -292,8 +372,20 @@ class GameMap {
             // Borders
             this.colliders.forEach(c => {
                 if (c.y !== 0 && c.x !== 0 && c.w !== 1024 && c.h !== 576) {
-                    ctx.fillStyle = '#140c22';
-                    ctx.fillRect(c.x, c.y, c.w, c.h);
+                    if (useTileset) {
+                        const sw = window.tilesetImg.width / 4;
+                        const sh = window.tilesetImg.height / 4;
+                        for (let wx = c.x; wx < c.x + c.w; wx += 48) {
+                            for (let wy = c.y; wy < c.y + c.h; wy += 48) {
+                                const dw = Math.min(48, c.x + c.w - wx);
+                                const dh = Math.min(48, c.y + c.h - wy);
+                                ctx.drawImage(window.tilesetImg, 0 * sw, 1 * sh, (dw/48)*sw, (dh/48)*sh, wx, wy, dw, dh);
+                            }
+                        }
+                    } else {
+                        ctx.fillStyle = '#140c22';
+                        ctx.fillRect(c.x, c.y, c.w, c.h);
+                    }
                 }
             });
         }
@@ -303,42 +395,59 @@ class GameMap {
             ctx.fillStyle = 'rgba(0,0,0,0.3)';
             ctx.fillRect(ch.x - 5, ch.y + 12, 42, 12); // Shadow
 
-            if (ch.opened) {
-                // Open chest drawing
-                ctx.fillStyle = '#8b5a2b';
-                ctx.fillRect(ch.x, ch.y + 10, 32, 14);
-                ctx.fillStyle = '#5c3a21';
-                ctx.fillRect(ch.x, ch.y, 32, 10);
+            if (useTileset) {
+                const sw = window.tilesetImg.width / 4;
+                const sh = window.tilesetImg.height / 4;
+                const col = ch.opened ? 1 : 0; // Row 2, Col 0: Closed chest, Col 1: Open chest
+                ctx.drawImage(window.tilesetImg, col * sw, 2 * sh, sw, sh, ch.x - 4, ch.y - 4, 40, 40);
             } else {
-                // Closed chest drawing
-                ctx.fillStyle = '#b87333';
-                ctx.fillRect(ch.x, ch.y, 32, 24);
-                ctx.fillStyle = '#ffb703';
-                ctx.fillRect(ch.x + 12, ch.y + 8, 8, 8); // Lock
+                if (ch.opened) {
+                    // Open chest drawing
+                    ctx.fillStyle = '#8b5a2b';
+                    ctx.fillRect(ch.x, ch.y + 10, 32, 14);
+                    ctx.fillStyle = '#5c3a21';
+                    ctx.fillRect(ch.x, ch.y, 32, 10);
+                } else {
+                    // Closed chest drawing
+                    ctx.fillStyle = '#b87333';
+                    ctx.fillRect(ch.x, ch.y, 32, 24);
+                    ctx.fillStyle = '#ffb703';
+                    ctx.fillRect(ch.x + 12, ch.y + 8, 8, 8); // Lock
+                }
             }
         });
 
         // Draw portals
         if (this.portal) {
             const p = this.portal;
-            if (this.currentLevel === 1 && !p.active) {
-                // Inactive stone gateway
-                ctx.fillStyle = '#2f3e46';
-                ctx.fillRect(p.x, p.y, p.w, p.h);
-                ctx.fillStyle = '#3a3d40';
-                ctx.fillRect(p.x + 10, p.y + 10, p.w - 20, p.h - 20);
+            if (useTileset) {
+                const sw = window.tilesetImg.width / 4;
+                const sh = window.tilesetImg.height / 4;
+                const col = (this.currentLevel === 1 && !p.active) ? 3 : 1; // Inactive: Row 1, Col 3, Active: Row 1, Col 1
+                ctx.drawImage(window.tilesetImg, col * sw, 1 * sh, sw, sh, p.x, p.y, p.w, p.h);
+                if (col === 1) {
+                    particles.spawnPortalVortex(p.x + p.w / 2, p.y + p.h / 2, 40);
+                }
             } else {
-                // Glowing active portal vortex
-                ctx.fillStyle = 'rgba(0, 245, 212, 0.2)';
-                ctx.fillRect(p.x, p.y, p.w, p.h);
-                
-                ctx.shadowBlur = 15;
-                ctx.shadowColor = '#00f5d4';
-                ctx.fillStyle = '#00f5d4';
-                ctx.fillRect(p.x + 10, p.y, p.w - 20, p.h);
-                ctx.shadowBlur = 0;
-                
-                particles.spawnPortalVortex(p.x + p.w / 2, p.y + p.h / 2, 40);
+                if (this.currentLevel === 1 && !p.active) {
+                    // Inactive stone gateway
+                    ctx.fillStyle = '#2f3e46';
+                    ctx.fillRect(p.x, p.y, p.w, p.h);
+                    ctx.fillStyle = '#3a3d40';
+                    ctx.fillRect(p.x + 10, p.y + 10, p.w - 20, p.h - 20);
+                } else {
+                    // Glowing active portal vortex
+                    ctx.fillStyle = 'rgba(0, 245, 212, 0.2)';
+                    ctx.fillRect(p.x, p.y, p.w, p.h);
+                    
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = '#00f5d4';
+                    ctx.fillStyle = '#00f5d4';
+                    ctx.fillRect(p.x + 10, p.y, p.w - 20, p.h);
+                    ctx.shadowBlur = 0;
+                    
+                    particles.spawnPortalVortex(p.x + p.w / 2, p.y + p.h / 2, 40);
+                }
             }
         }
 

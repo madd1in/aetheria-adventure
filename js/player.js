@@ -36,6 +36,10 @@ class Player {
         
         // Footstep smoke timer
         this.stepTimer = 0;
+        
+        // Spritesheet animation
+        this.animFrame = 0;
+        this.animTimer = 0;
     }
 
     resetStats() {
@@ -121,13 +125,15 @@ class Player {
         audio.playDash();
     }
 
-    attackSword(mousePos, camera) {
+    attackSword(mousePos, camera, useKeyboardAim = false) {
         if (this.isDashing || this.swordTimer > 0) return;
         
-        // Calculate angle to mouse position
-        const dx = mousePos.x + camera.x - this.x;
-        const dy = mousePos.y + camera.y - this.y;
-        this.facingAngle = Math.atan2(dy, dx);
+        if (!useKeyboardAim) {
+            // Calculate angle to mouse position
+            const dx = mousePos.x + camera.x - this.x;
+            const dy = mousePos.y + camera.y - this.y;
+            this.facingAngle = Math.atan2(dy, dx);
+        }
         
         this.swordTimer = this.swordDuration;
         this.swordAngleSweep = -Math.PI / 3.5; // Start angle relative to face
@@ -160,18 +166,21 @@ class Player {
         }
     }
 
-    castSpell(mousePos, camera) {
+    castSpell(mousePos, camera, useKeyboardAim = false) {
         if (this.isDashing || this.mana < 20) return;
         
         this.mana -= 20;
         audio.playBlast();
         this.updateHUD();
 
-        // Calculate angle to mouse
-        const dx = mousePos.x + camera.x - this.x;
-        const dy = mousePos.y + camera.y - this.y;
-        const angle = Math.atan2(dy, dx);
-        this.facingAngle = angle;
+        let angle = this.facingAngle;
+        if (!useKeyboardAim) {
+            // Calculate angle to mouse
+            const dx = mousePos.x + camera.x - this.x;
+            const dy = mousePos.y + camera.y - this.y;
+            angle = Math.atan2(dy, dx);
+            this.facingAngle = angle;
+        }
 
         // Spawn aether projectile
         const speed = 7.5;
@@ -240,6 +249,13 @@ class Player {
                     this.facingAngle = Math.atan2(this.vy, this.vx);
                 }
 
+                // Sprite walk cycle ticking
+                this.animTimer++;
+                if (this.animTimer >= 7) {
+                    this.animFrame = (this.animFrame + 1) % 4;
+                    this.animTimer = 0;
+                }
+
                 // Spawning dust particles
                 this.stepTimer++;
                 if (this.stepTimer % 12 === 0) {
@@ -248,9 +264,11 @@ class Player {
             } else {
                 this.vx = 0;
                 this.vy = 0;
+                this.animFrame = 0; // idle frame
+                this.animTimer = 0;
             }
 
-            // Aim facing angle towards mouse cursor
+            // Aim facing angle towards mouse cursor (only if mouse has moved)
             if (mousePos.x !== 0 || mousePos.y !== 0) {
                 const adx = mousePos.x + camera.x - this.x;
                 const ady = mousePos.y + camera.y - this.y;
@@ -355,52 +373,93 @@ class Player {
         });
 
         // 3. Draw Player Body facing direction
-        ctx.save();
-        ctx.translate(px, py);
-        ctx.rotate(this.facingAngle);
+        if (window.playerSheetImg && window.playerSheetImg.complete && window.playerSheetImg.width > 0) {
+            ctx.save();
+            ctx.translate(px, py);
+            
+            // Map angle to spritesheet row (Down: 0, Left: 1, Right: 2, Up: 3)
+            let angle = this.facingAngle;
+            while (angle < -Math.PI) angle += Math.PI * 2;
+            while (angle > Math.PI) angle -= Math.PI * 2;
+            
+            let row = 0; // Down
+            if (angle >= -Math.PI / 4 && angle < Math.PI / 4) {
+                row = 2; // Right
+            } else if (angle >= Math.PI / 4 && angle < 3 * Math.PI / 4) {
+                row = 0; // Down
+            } else if (angle >= -3 * Math.PI / 4 && angle < -Math.PI / 4) {
+                row = 3; // Up
+            } else {
+                row = 1; // Left
+            }
 
-        // Invincibility flicker
-        if (this.invincibilityFrames > 0 && Math.floor(this.invincibilityFrames / 3) % 2 === 0) {
-            ctx.globalAlpha = 0.3;
+            if (this.invincibilityFrames > 0 && Math.floor(this.invincibilityFrames / 3) % 2 === 0) {
+                ctx.globalAlpha = 0.3;
+            }
+
+            const fw = window.playerSheetImg.width / 4;
+            const fh = window.playerSheetImg.height / 4;
+            ctx.drawImage(
+                window.playerSheetImg,
+                this.animFrame * fw,
+                row * fh,
+                fw,
+                fh,
+                -24, // offset x (center it)
+                -30, // offset y
+                48,  // width
+                56   // height
+            );
+            ctx.restore();
+        } else {
+            // Draw Fallback programmatic vector shape
+            ctx.save();
+            ctx.translate(px, py);
+            ctx.rotate(this.facingAngle);
+
+            // Invincibility flicker
+            if (this.invincibilityFrames > 0 && Math.floor(this.invincibilityFrames / 3) % 2 === 0) {
+                ctx.globalAlpha = 0.3;
+            }
+
+            // Draw Robe/Armor
+            ctx.fillStyle = '#7b2cbf'; // deep purple mage-warrior robe
+            ctx.beginPath();
+            ctx.arc(0, 0, 18, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Armor plates (shoulders/chests)
+            ctx.fillStyle = '#1d3557';
+            ctx.fillRect(-6, -15, 12, 6);
+            ctx.fillRect(-6, 9, 12, 6);
+            
+            // Mage collar / cowl
+            ctx.fillStyle = '#9d4edd';
+            ctx.beginPath();
+            ctx.arc(-2, 0, 13, -Math.PI / 1.5, Math.PI / 1.5);
+            ctx.fill();
+
+            // Glowing Core Markings
+            ctx.fillStyle = '#00f5d4';
+            ctx.beginPath();
+            ctx.arc(2, 0, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Face visor
+            ctx.fillStyle = '#100c22';
+            ctx.beginPath();
+            ctx.arc(6, 0, 8, -Math.PI / 2.5, Math.PI / 2.5);
+            ctx.fill();
+
+            // Glowing cyan eye band visor
+            ctx.fillStyle = '#00f5d4';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#00f5d4';
+            ctx.fillRect(8, -4, 4, 8);
+            ctx.shadowBlur = 0;
+
+            ctx.restore();
         }
-
-        // Draw Robe/Armor
-        ctx.fillStyle = '#7b2cbf'; // deep purple mage-warrior robe
-        ctx.beginPath();
-        ctx.arc(0, 0, 18, 0, Math.PI * 2);
-        ctx.fill();
-        
-        // Armor plates (shoulders/chests)
-        ctx.fillStyle = '#1d3557';
-        ctx.fillRect(-6, -15, 12, 6);
-        ctx.fillRect(-6, 9, 12, 6);
-        
-        // Mage collar / cowl
-        ctx.fillStyle = '#9d4edd';
-        ctx.beginPath();
-        ctx.arc(-2, 0, 13, -Math.PI / 1.5, Math.PI / 1.5);
-        ctx.fill();
-
-        // Glowing Core Markings
-        ctx.fillStyle = '#00f5d4';
-        ctx.beginPath();
-        ctx.arc(2, 0, 4, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Face visor
-        ctx.fillStyle = '#100c22';
-        ctx.beginPath();
-        ctx.arc(6, 0, 8, -Math.PI / 2.5, Math.PI / 2.5);
-        ctx.fill();
-
-        // Glowing cyan eye band visor
-        ctx.fillStyle = '#00f5d4';
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = '#00f5d4';
-        ctx.fillRect(8, -4, 4, 8);
-        ctx.shadowBlur = 0;
-
-        ctx.restore();
 
         // 4. Draw Melee Sword Swing sweeping slash arcs
         if (this.swordTimer > 0) {

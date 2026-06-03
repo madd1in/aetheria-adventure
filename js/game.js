@@ -1,6 +1,15 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// Preload Spritesheets & Tileset
+window.tilesetImg = new Image();
+window.tilesetImg.src = 'assets/tileset.png';
+window.playerSheetImg = new Image();
+window.playerSheetImg.src = 'assets/player_spritesheet.png';
+window.enemiesSheetImg = new Image();
+window.enemiesSheetImg.src = 'assets/enemies_spritesheet.png';
+
+
 // Camera representation
 const camera = {
     x: 0,
@@ -44,11 +53,17 @@ window.addEventListener('keydown', (e) => {
     keys[e.key.toLowerCase()] = true;
     
     // Quick keys mapping
-    if (e.key === ' ' || e.key === 'Spacebar') {
+    if (e.key === ' ' || e.key === 'Spacebar' || e.key.toLowerCase() === 'v') {
         player.dash(keys);
     }
     if (e.key.toLowerCase() === 'e') {
         player.usePotion();
+    }
+    if (e.key.toLowerCase() === 'x') {
+        player.attackSword(mousePos, camera, true);
+    }
+    if (e.key.toLowerCase() === 'c') {
+        player.castSpell(mousePos, camera, true);
     }
     if (e.key.toLowerCase() === '1') {
         player.activeWeapon = 1;
@@ -491,10 +506,10 @@ function update() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply Camera following player
-    // Lerp coordinates
-    const targetCamX = player.x - canvas.width / 2;
-    const targetCamY = player.y - canvas.height / 2;
+    // Apply Camera following player with look-ahead based on facing direction
+    const lookAheadDist = 65;
+    const targetCamX = player.x - canvas.width / 2 + Math.cos(player.facingAngle) * lookAheadDist;
+    const targetCamY = player.y - canvas.height / 2 + Math.sin(player.facingAngle) * lookAheadDist;
     camera.x += (targetCamX - camera.x) * camera.lerpSpeed;
     camera.y += (targetCamY - camera.y) * camera.lerpSpeed;
 
@@ -567,3 +582,23 @@ function loop() {
 // Initial settings layout binds
 updateWeaponBelt();
 requestAnimationFrame(loop);
+
+// Screen dynamic auto-scaling
+function resizeGame() {
+    const container = document.getElementById('game-container');
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const targetRatio = 1024 / 576;
+    const currentRatio = w / h;
+    let scale = 1;
+    if (currentRatio > targetRatio) {
+        scale = h / 576;
+    } else {
+        scale = w / 1024;
+    }
+    container.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', resizeGame);
+window.addEventListener('load', resizeGame);
+setTimeout(resizeGame, 50);
+
