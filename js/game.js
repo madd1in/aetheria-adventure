@@ -506,10 +506,9 @@ function update() {
 function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Apply Camera following player with look-ahead based on facing direction
-    const lookAheadDist = 65;
-    const targetCamX = player.x - canvas.width / 2 + Math.cos(player.facingAngle) * lookAheadDist;
-    const targetCamY = player.y - canvas.height / 2 + Math.sin(player.facingAngle) * lookAheadDist;
+    // Apply Camera following player exactly zentriert
+    const targetCamX = player.x - canvas.width / 2;
+    const targetCamY = player.y - canvas.height / 2;
     camera.x += (targetCamX - camera.x) * camera.lerpSpeed;
     camera.y += (targetCamY - camera.y) * camera.lerpSpeed;
 
@@ -596,7 +595,7 @@ function resizeGame() {
     } else {
         scale = w / 1024;
     }
-    container.style.transform = `scale(${scale})`;
+    container.style.transform = `translate(-50%, -50%) scale(${scale})`;
 }
 window.addEventListener('resize', resizeGame);
 window.addEventListener('load', resizeGame);

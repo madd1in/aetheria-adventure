@@ -8,11 +8,11 @@ class Player {
         this.speed = 3.8;
         
         // Stats
-        this.maxHealth = 100;
-        this.health = 100;
-        this.maxMana = 100;
-        this.mana = 100;
-        this.potions = 3;
+        this.maxHealth = 120;
+        this.health = 120;
+        this.maxMana = 120;
+        this.mana = 120;
+        this.potions = 5;
         this.keys = 0;
         this.hasRuinKey = false;
         
@@ -45,7 +45,7 @@ class Player {
     resetStats() {
         this.health = this.maxHealth;
         this.mana = this.maxMana;
-        this.potions = 3;
+        this.potions = 5;
         this.keys = 0;
         this.hasRuinKey = false;
         this.projectiles = [];
@@ -74,7 +74,7 @@ class Player {
     usePotion() {
         if (this.potions > 0 && this.health < this.maxHealth) {
             this.potions--;
-            this.health = Math.min(this.maxHealth, this.health + 45);
+            this.health = Math.min(this.maxHealth, this.health + 65);
             audio.playHeal();
             
             // Spawn healing sparkle particles around player
@@ -120,7 +120,7 @@ class Player {
 
         this.isDashing = true;
         this.dashTimer = this.dashDuration;
-        this.dashCooldown = 45; // 0.75s cooldown
+        this.dashCooldown = 32; // 0.53s cooldown (faster dodging!)
         
         audio.playDash();
     }

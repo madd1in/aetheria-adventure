@@ -6,29 +6,29 @@ class Enemy {
         
         // Base attributes depending on enemy type
         if (type === 'crawler') {
-            this.maxHealth = 40;
-            this.health = 40;
+            this.maxHealth = 30;
+            this.health = 30;
             this.radius = 16;
-            this.speed = 1.9;
-            this.damage = 12;
+            this.speed = 1.5;
+            this.damage = 8;
             this.color = '#ff4d6d'; // neon red
             this.biteCooldown = 0;
             this.state = 'patrol'; // patrol, chase
         } else if (type === 'sentry') {
-            this.maxHealth = 50;
-            this.health = 50;
+            this.maxHealth = 40;
+            this.health = 40;
             this.radius = 18;
-            this.speed = 1.2;
-            this.damage = 18;
+            this.speed = 1.0;
+            this.damage = 12;
             this.color = '#7209b7'; // void violet
             this.shootCooldown = 0;
             this.state = 'patrol';
         } else if (type === 'boss') {
-            this.maxHealth = 600;
-            this.health = 600;
+            this.maxHealth = 450;
+            this.health = 450;
             this.radius = 42;
-            this.speed = 2.0;
-            this.damage = 25;
+            this.speed = 1.7;
+            this.damage = 18;
             this.color = '#4c068d'; // giant purple golem
             this.bossPhase = 1; // 1, 2, 3
             this.attackTimer = 0;
@@ -64,12 +64,12 @@ class Enemy {
             document.getElementById('boss-health-bar').style.width = hPercent + '%';
             
             // Phase triggers
-            if (this.health <= 200 && this.bossPhase < 3) {
+            if (this.health <= 150 && this.bossPhase < 3) {
                 this.bossPhase = 3;
-                this.speed = 2.4;
+                this.speed = 2.0;
                 audio.playSFX(100, 300, 'sawtooth', 0.8, 1.2);
                 particles.spawnSpellExplosion(this.x, this.y);
-            } else if (this.health <= 400 && this.bossPhase < 2) {
+            } else if (this.health <= 300 && this.bossPhase < 2) {
                 this.bossPhase = 2;
                 this.state = 'spiral';
                 audio.playSFX(200, 500, 'sine', 0.6, 1.0);

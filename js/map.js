@@ -179,6 +179,10 @@ class GameMap {
         const lvl = this.levels[this.currentLevel];
         const useTileset = window.tilesetImg && window.tilesetImg.complete && window.tilesetImg.width > 0;
         
+        // Draw solid background color first to blend textures
+        ctx.fillStyle = lvl.groundColor;
+        ctx.fillRect(0, 0, this.width, this.height);
+
         if (useTileset) {
             const sw = window.tilesetImg.width / 4;
             const sh = window.tilesetImg.height / 4;
@@ -192,6 +196,8 @@ class GameMap {
             const endX = Math.min(this.width, camera.x + camera.w + 48);
             const endY = Math.min(this.height, camera.y + camera.h + 48);
             
+            ctx.save();
+            ctx.globalAlpha = 0.45; // Soft blending to hide tile seams
             for (let x = startX; x < endX; x += 48) {
                 for (let y = startY; y < endY; y += 48) {
                     ctx.drawImage(
@@ -200,18 +206,15 @@ class GameMap {
                         floorY * sh,
                         sw,
                         sh,
-                        x,
-                        y,
-                        48,
-                        48
+                        x - 0.5, // 0.5px overlap prevents subpixel rendering gaps
+                        y - 0.5,
+                        49,      // 49px size covers overlaps
+                        49
                     );
                 }
             }
+            ctx.restore();
         } else {
-            // Draw fallback floor texture pattern
-            ctx.fillStyle = lvl.groundColor;
-            ctx.fillRect(0, 0, this.width, this.height);
-            
             // Draw grid lines to suggest detailed paving tiles
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
             ctx.lineWidth = 1;
